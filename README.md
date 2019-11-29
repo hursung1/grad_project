@@ -1,2 +1,2 @@
 # grad_project
-Continual Learning
+Continual Learning with RADAR DATA
