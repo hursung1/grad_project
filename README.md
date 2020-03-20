@@ -1,2 +1,1 @@
-# continual_learning
-continual learning
+# Graduation Project 
