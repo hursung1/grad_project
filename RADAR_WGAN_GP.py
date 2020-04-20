@@ -46,7 +46,7 @@ for epoch in range(epochs):
     gen.train()
     disc.train()
 
-    for i in range(1000):
+    for i in range(10):
         for _train_data in train_data:
             x = _train_data.view(-1, 1, 128, 128).to(device)
             num_data = x.shape[0]
@@ -89,12 +89,16 @@ for epoch in range(epochs):
                 loss_g = -torch.mean(p_fake)
                 loss_g.backward()
                 optim_g.step()
-
+                
     print("[Epoch %d/%d] [D loss: %f] [G loss: %f]" % (epoch, epochs, loss_d.item(), loss_g.item()))
 
     if epoch % 10 == 9:
+        dir_name = "imgs/"#Task_%d" % (t+1)
+        if not os.path.isdir(dir_name):
+            os.mkdir(dir_name)
+            
         gen.eval()
         noise = lib.sample_noise(64, num_noise).to(device)
 
         gen_img = gen(noise)
-        lib.imsave(gen_img, epoch)
+        torchvision.utils.save_image(gen_img, 'imgs/%03d.png'%(epoch+1))
