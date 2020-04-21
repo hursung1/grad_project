@@ -1,5 +1,4 @@
 import torch
-import torchvision
 import numpy as np
 
 class FCNetwork(torch.nn.Module):

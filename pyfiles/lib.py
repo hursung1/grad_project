@@ -1,6 +1,5 @@
 import os
 import torch
-import torchvision
 import numpy as np
 import scipy.misc
 from PIL import Image
@@ -123,13 +122,19 @@ def RADARLoader(root, tasks, category, device):
     return train_data, train_labels, test_data, test_labels
 
 
+def imsave(img, epoch, path='imgs'):
+    assert type(img) is torch.Tensor
+    if not os.path.isdir(path):
+        os.mkdir(path)
+        
+    fig = torchvision.utils.make_grid(img.cpu().detach()).numpy()[0]
+    scipy.misc.imsave(path+'/%03d.png'%(epoch+1), fig)
+    
+
 def sample_noise(batch_size, N_noise, device='cpu'):
     """
     Returns 
     """
-    if torch.cuda.is_available() and device == 'cpu':
-        device='cuda:0'
-    
     return torch.randn(batch_size, N_noise).to(device)
 
 
