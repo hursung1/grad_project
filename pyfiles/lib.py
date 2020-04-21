@@ -2,6 +2,7 @@ import os
 import torch
 import numpy as np
 import scipy.misc
+import torchvision
 from PIL import Image
 
 def setPMNISTDataLoader(num_task, batch_size):
@@ -60,12 +61,16 @@ def get_fisher(net, crit, dataloader):
     return FisherMatrix
 
 
-def RADARLoader(root, tasks, category, device):
-    ### Data: (# of subject, # of classes, # of data, width, height)
+def RADARLoader(root, category, device, learn_mode="divide_subject"):
+    """
+    returns RADAR Dataset
+    default: divide by subject (Data: (# of subject, # of classes, # of data, width, height))
+    """
     train_data = []
     test_data = []
+    subjects = 12
 
-    for task in range(1, tasks+1):
+    for task in range(1, subjects+1):
         data_path = root + '/Subject%d'%(task)
 
         train_data_per_task = []
@@ -92,17 +97,20 @@ def RADARLoader(root, tasks, category, device):
                 img = np.array(img)
                 test_data_per_cat.append(img)
 
-
             train_data_per_task.append(train_data_per_cat)
             test_data_per_task.append(test_data_per_cat)
 
         train_data.append(train_data_per_task)
         test_data.append(test_data_per_task)
 
-
     train_data = torch.Tensor(train_data).to(device)
     test_data = torch.Tensor(test_data).to(device)
 
+    
+    if learn_mode == "divide_class":
+        train_data = train_data.permute(1,0,2,3,4) 
+        test_data = test_data.permute(1,0,2,3,4)
+        
     print("Train Data Shape: ", train_data.shape)
     print("Test Data Shape: ", test_data.shape)
 
@@ -168,3 +176,38 @@ def model_grad_switch(net, requires_grad):
     """
     for params in net.parameters():
         params.requires_grad_(requires_grad)
+        
+        
+def solver_evaluate(cur_task, gen, solver, ratio, device, TestDataLoaders, solver_acc_dict):
+    """
+    evaluate solver's accuracy
+    
+    """
+    gen.eval()
+    solver.eval()
+    accuracy_list = []
+    # solver_loss = 0.0
+    celoss = torch.nn.CrossEntropyLoss().to(device) if torch.cuda.is_available() else torch.nn.CrossEntropyLoss()
+    _TestDataLoaders = TestDataLoaders[:cur_task+1]
+
+    for i, testdataloader in enumerate(_TestDataLoaders):
+        total = 0
+        correct = 0
+        for data in testdataloader:
+            x, y = data
+            total += x.shape[0]
+            if torch.cuda.is_available():
+                x = x.to(device)
+                y = y.to(device)
+
+            with torch.autograd.no_grad():
+                output = torch.max(solver(x), dim=1)[1]
+                correct += (output == y).sum().item()
+
+        accuracy = (correct * 100) / total
+        accuracy_list.append(accuracy)
+        solver_acc_dict[i][cur_task] = accuracy
+
+    accuracy = np.average(np.array(accuracy_list))
+    print("Task {} solver's accuracy(%): {}\n".format(cur_task+1, accuracy))
+    return accuracy
