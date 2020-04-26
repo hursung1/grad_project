@@ -79,7 +79,7 @@ def L2Learning(**kwargs):
     past_task_params = torch.cat((past_task_params, tensor_param.unsqueeze(0)))
 
 
-def EWCLearning():
+def EWCLearning(**kwargs):
     """
     Continual Learning with Fisher Regularization Term
     """
@@ -94,8 +94,7 @@ def EWCLearning():
 
     for epoch in range(epochs):
         running_loss = 0.0
-        for _, data in dataloader:
-            x, y = data
+        for x, y in dataloader:
             if torch.cuda.is_available():
                 x = x.cuda()
                 y = y.cuda()
@@ -106,9 +105,9 @@ def EWCLearning():
 
             reg = 0.0
             for task, past_param in enumerate(past_task_params):
-                for i, param in net.parameters():
+                for i, param in enumerate(net.parameters()):
                     penalty = (past_param[i] - param) ** 2
-                    penalty *= past_fisher_mat[task]
+                    penalty *= past_fisher_mat[task][i]
                     reg += penalty.sum()
                 loss += reg * (ld / 2)
 
@@ -116,19 +115,24 @@ def EWCLearning():
             optim.step()
             running_loss += loss.item()
 
-        if epoch % 10 == 9:
-            print("[Epoch %d] Loss: %.3f"%(epoch, running_loss))
+        if epoch % 20 == 19:
+            print("[Epoch %d/%d] Loss: %.3f"%(epoch+1, epochs, running_loss))
 
     ### Save parameters to use at next task learning
     tensor_param = []
     for params in net.parameters():
         tensor_param.append(params.detach().clone())
+    '''
     tensor_param = torch.stack(tensor_param)
     past_task_params = torch.cat((past_task_params, tensor_param.unsqueeze(0)))
+    '''
+    past_task_params.append(tensor_param)
 
     ### Save Fisher matrix
     FisherMatrix = lib.get_fisher(net, crit, dataloader)
-    past_fisher_mat = torch.cat((past_fisher_mat, FisherMatrix.unsqueeze(0)))
+#     past_fisher_mat = torch.cat((past_fisher_mat, FisherMatrix.unsqueeze(0)))
+#     print(past_fisher_mat)
+    past_fisher_mat.append(FisherMatrix)
     
     
 def DGRLearning(**kwargs):

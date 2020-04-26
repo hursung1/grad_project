@@ -22,11 +22,14 @@ category={0: 'boxingmoving',
           5: 'walking', 
           6: 'walkinglow'}
 
-device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+# device0 = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+# device1 = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
 data_path='../data/RADAR'
 
 ### Get RADAR DATA
 train_data, train_labels, test_data, test_labels = lib.RADARLoader(data_path, category, device, "divide_class")
+
 tasks = train_data.shape[0]
 
 ### Normalize data to [-1, 1]

@@ -5,6 +5,8 @@ import scipy.misc
 import torchvision
 from PIL import Image
 
+
+#======================= DataLoaders ========================
 def setPMNISTDataLoader(num_task, batch_size):
     """
 
@@ -31,35 +33,6 @@ def setPMNISTDataLoader(num_task, batch_size):
             batch_size=batch_size)
     
     return train_loader, test_loader
-
-
-def get_fisher(net, crit, dataloader):
-    FisherMatrix = []
-    for params in net.parameters():
-        if params.requires_grad:
-            ZeroMat = torch.zeros_like(params)
-            FisherMatrix.append(ZeroMat)
-
-    FisherMatrix = torch.stack(FisherMatrix)
-
-    for data in enumerate(dataloader):
-        x, y = data
-        num_data = x.shape[0]
-        if torch.cuda.is_available():
-            x = x.cuda()
-            y = y.cuda()
-
-        net.zero_grad()
-        outputs = net(x)
-        loss = crit(outputs, y)
-        loss.backward()
-
-        for i, params in enumerate(net.parameters()):
-            if params.requires_grad:
-                FisherMatrix[i] += params.grad.data ** 2 / num_data
-
-    return FisherMatrix
-
 
 def RADARLoader(root, category, device, learn_mode="divide_subject"):
     """
@@ -130,54 +103,78 @@ def RADARLoader(root, category, device, learn_mode="divide_subject"):
     return train_data, train_labels, test_data, test_labels
 
 
-def imsave(img, epoch, path='imgs'):
-    assert type(img) is torch.Tensor
-    if not os.path.isdir(path):
-        os.mkdir(path)
-        
-    fig = torchvision.utils.make_grid(img.cpu().detach()).numpy()[0]
-    scipy.misc.imsave(path+'/%03d.png'%(epoch+1), fig)
+#======================= For EWC ========================
+def ewc_eval(**kwargs):
+    dataloader = kwargs['dataloader']
+    num_task = kwargs['num_task']
+    net = kwargs['net']
     
+    each_task_acc = torch.zeros((num_task+1, ))
+    if torch.cuda.is_available():
+        each_task_acc = each_task_acc.cuda()
 
-def sample_noise(batch_size, N_noise, device='cpu'):
-    """
-    Returns 
-    """
-    return torch.randn(batch_size, N_noise).to(device)
+    net.eval()
+    for t in range(num_task+1):
+        total = 0.0
+        correct = 0.0
+        for _, data in enumerate(dataloader[t]):
+            x, y = data
+            if torch.cuda.is_available():
+                x = x.cuda()
+                y = y.cuda()
 
+            outputs = net(x)
+            _, predicted = torch.max(outputs, dim=1)
+            total += x.shape[0]
 
-def init_params(model):
-    """
-    initiallize network's parameter
-    """
-    for p in model.parameters():
-        if(p.dim() > 1):
-            torch.nn.init.xavier_normal_(p)
-        else:
-            torch.nn.init.uniform_(p, 0.1, 0.2)
-            
-            
-def tensor_normalize(tensor):
-    """
-    Normalize tensor to [-1, 1]
-    """
-    _tensor = tensor.detach().clone()
-    _tensor_each_sum = _tensor.sum(dim=1)
-    _tensor /= _tensor_each_sum.unsqueeze(1)
+            correct += (predicted == y).sum()
 
-    _tensor[torch.isnan(_tensor)] = 0.0
-    _tensor = 2*_tensor - 1
-    return _tensor
+        each_task_acc[t] = (correct / total) * 100
+
+    acc_mean = torch.mean(each_task_acc)
+    print('[Task %d] avg accuracy: %.3f%%'%(num_task+1, acc_mean))
+    
+    return each_task_acc, acc_mean
 
 
-def model_grad_switch(net, requires_grad):
-    """
-    switch network's requires_grad
-    """
+def get_fisher(net, crit, data):
+    FisherMatrix = []
+    net.eval()
     for params in net.parameters():
-        params.requires_grad_(requires_grad)
-        
-        
+        if params.requires_grad:
+            ZeroMat = torch.zeros_like(params)
+            FisherMatrix.append(ZeroMat)
+
+    x_s, y = data
+    y = y.view(-1)
+    for x in x_s:
+        x = x.view(-1, 1, 128, 128)
+#         x = x.view(-1, 128*128)
+        num_data = x.shape[0]
+
+        net.zero_grad()
+        outputs = net(x)
+        loss = crit(outputs, y)
+        loss.backward()
+
+        for i, params in enumerate(net.parameters()):
+            if params.requires_grad:
+                FisherMatrix[i] += params.grad.data ** 2 / num_data
+
+    return FisherMatrix
+
+
+#======================= For GEM ========================
+def gem_train():
+    pass
+
+
+def gem_eval():
+    pass
+
+
+
+#======================= For DGR ========================
 def solver_evaluate(cur_task, gen, solver, ratio, device, TestDataLoaders, solver_acc_dict):
     """
     evaluate solver's accuracy
@@ -211,3 +208,53 @@ def solver_evaluate(cur_task, gen, solver, ratio, device, TestDataLoaders, solve
     accuracy = np.average(np.array(accuracy_list))
     print("Task {} solver's accuracy(%): {}\n".format(cur_task+1, accuracy))
     return accuracy
+
+
+#======================= ETC. ========================
+def imsave(img, epoch, path='imgs'):
+    assert type(img) is torch.Tensor
+    if not os.path.isdir(path):
+        os.mkdir(path)
+        
+    fig = torchvision.utils.make_grid(img.cpu().detach()).numpy()[0]
+    scipy.misc.imsave(path+'/%03d.png'%(epoch+1), fig)
+    
+
+def sample_noise(batch_size, N_noise, device='cpu'):
+    """
+    Returns 
+    """
+    return torch.randn(batch_size, N_noise).to(device)
+
+
+def init_params(model):
+    """
+    initiallize network's parameter
+    """
+    for p in model.parameters():
+        if(p.dim() > 1):
+            torch.nn.init.xavier_normal_(p)
+        else:
+            torch.nn.init.uniform_(p, 0.1, 0.2)
+            
+            
+def tensor_normalize(tensor):
+    """
+    Normalize tensor to [-1, 1]
+    Assume that input tensor is in [0, 1]
+    """
+    _tensor = tensor.detach().clone()
+    _tensor -= 0.5
+    
+    _tensor *= 2
+    _tensor[torch.isnan(_tensor)] = 0.0    
+    
+    return _tensor
+
+
+def model_grad_switch(net, requires_grad):
+    """
+    switch network's requires_grad
+    """
+    for params in net.parameters():
+        params.requires_grad_(requires_grad)

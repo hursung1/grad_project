@@ -1,5 +1,6 @@
+import os, sys
+sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 import datetime
-import os
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
@@ -11,7 +12,7 @@ tasks = 12
 epochs = 100
 learning_rate = 1e-3
 batch_size = 64
-data_path = './data/RADAR'
+data_path = '../data/RADAR'
 
 category={0: 'boxingmoving', 
           1: 'boxingstill', 
@@ -25,7 +26,7 @@ device = torch.device('cuda:3' if torch.cuda.is_available() else 'cpu')
 dt = datetime.datetime.now()
 
 ### Data: (# of subject, # of classes, # of data, width, height)
-train_data, train_labels, test_data, test_labels = lib.RADARLoader(data_path, tasks, category, device)
+train_data, train_labels, test_data, test_labels = lib.RADARLoader(data_path, category, device, "")
 
 net = models.ConvolutionNetwork().to(device)
 

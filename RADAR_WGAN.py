@@ -27,7 +27,7 @@ category={0: 'boxingmoving',
 device = torch.device('cuda:3' if torch.cuda.is_available() else 'cpu')
 data_path='./data/RADAR'
 
-train_data, train_labels, test_data, test_labels = lib.RADARLoader(data_path, tasks, category, device, "")
+train_data, train_labels, test_data, test_labels = lib.RADARLoader(data_path, category, device, "")
 train_data = lib.tensor_normalize(train_data)
 train_labels = lib.tensor_normalize(train_labels)
 test_data = lib.tensor_normalize(test_data)
@@ -46,9 +46,9 @@ for epoch in range(epochs):
     gen.train()
     disc.train()
 
-    for i in range(10):
+    for i in range(1):
         for _train_data in train_data:
-            x = _train_data.view(-1, 1, 128, 128).to(device)
+            x = _train_data.view(-1, 1, 128, 128)
             num_data = x.shape[0]
             noise = lib.sample_noise(num_data, num_noise).to(device)
 
@@ -82,13 +82,13 @@ for epoch in range(epochs):
             loss_d.backward()
             optim_d.step()
 
-            if i % 5 == 4:
-                ### Generator train
-                optim_g.zero_grad()
-                p_fake = disc(x_g)
-                loss_g = -torch.mean(p_fake)
-                loss_g.backward()
-                optim_g.step()
+            #if i % 5 == 4:
+            ### Generator train
+            optim_g.zero_grad()
+            p_fake = disc(x_g)
+            loss_g = -torch.mean(p_fake)
+            loss_g.backward()
+            optim_g.step()
                 
     print("[Epoch %d/%d] [D loss: %f] [G loss: %f]" % (epoch, epochs, loss_d.item(), loss_g.item()))
 
