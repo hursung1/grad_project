@@ -418,8 +418,10 @@ class Solver(torch.nn.Module):
         self.network = torch.nn.Sequential(
             fc1,
             torch.nn.ReLU(),
+            torch.nn.Dropout(0.5),
             fc2,
             torch.nn.ReLU(),
+            torch.nn.Dropout(0.5),
             fc3
         )
 
